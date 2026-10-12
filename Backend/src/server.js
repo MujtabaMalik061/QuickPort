@@ -23,10 +23,14 @@ const __dirname = dirname(__filename);
 const app = express();
 const server = http.createServer(app);
 
+const allowedOrigins = process.env.FRONTEND_URLS
+  ? process.env.FRONTEND_URLS.split(",")
+  : ["http://localhost:5173", "https://quick-port-gules.vercel.app"];
+
 // Socket.IO setup with CORS configuration
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:5173", "https://quick-port-gules.vercel.app"],
+    origin: allowedOrigins,
     credentials: true,
   },
 });
@@ -35,7 +39,7 @@ connectDB();
 
 app.use(
   cors({
-    origin: ["http://localhost:5173", "https://quick-port-gules.vercel.app"],
+    origin: allowedOrigins,
     credentials: true,
   })
 );
@@ -53,114 +57,144 @@ app.get("/", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/driver", driverRoutes);
 
+
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
+  // --- ROOMS ---
   socket.on("join-room", (userId, role) => {
     if (!userId || !role) {
       console.error("Invalid join-room parameters:", { userId, role });
       return;
     }
-    
     socket.join(`${role}-${userId}`);
     console.log(`User ${userId} joined room as ${role}`);
   });
 
+  // --- RIDER CREATES RIDE ---
   socket.on("ride-request", async (rideData) => {
     try {
-      console.log("Received ride request:", rideData);
-
-      // Validate required fields
-      if (!rideData.riderData || !rideData.riderData._id) {
-        throw new Error("Invalid rider data");
-      }
-
-      if (
-        !rideData.rideDetails ||
-        !rideData.rideDetails.locations ||
-        !rideData.rideDetails.locations.start
-      ) {
+      if (!rideData?.riderData?._id) throw new Error("Invalid rider data");
+      if (!rideData?.rideDetails?.locations?.start)
         throw new Error("Invalid ride details");
-      }
 
-      // Save ride request to database
-      const newRide = new Ride(rideData);
-      await newRide.save();
+      const newRide = await new Ride(rideData).save();
 
-      console.log("Ride saved to database:", newRide);
-
-      // Find available drivers (you'll need to implement this logic)
       const availableDrivers = await findAvailableDrivers();
-      console.log("Available drivers:", availableDrivers.length);
-
-      // Emit ride request to available drivers
       availableDrivers.forEach((driver) => {
         io.to(`driver-${driver._id}`).emit("new-ride-request", newRide);
       });
 
-      // Send confirmation to rider
+      // tell the rider we saved it
       io.to(`rider-${rideData.riderData._id}`).emit(
         "ride-request-sent",
         newRide
       );
     } catch (error) {
       console.error("Error saving ride request:", error);
-      io.to(`rider-${rideData.riderData._id}`).emit(
-        "ride-request-error",
-        error.message || "Failed to send ride request"
-      );
+      if (rideData?.riderData?._id) {
+        io.to(`rider-${rideData.riderData._id}`).emit(
+          "ride-request-error",
+          error.message || "Failed to send ride request"
+        );
+      }
     }
   });
 
-  // Handle driver accepting ride
+  // --- DRIVER ACCEPTS RIDE ---
   socket.on("accept-ride", async (rideId, driverData, price) => {
     try {
-      console.log("Driver accepting ride:", rideId, driverData, price);
+      if (!rideId || !driverData?._id) throw new Error("Invalid accept data");
 
-      // Update ride with driver data and price
       const updatedRide = await Ride.findByIdAndUpdate(
         rideId,
         {
-          driverData: driverData,
-          price: price,
-          driverStatus: "accepted",
+          driverData, // overwrite with selected driver
+          price, // proposed price
+          driverStatus: "accepted", // driver accepted
+          // keep rideStatus pending until rider accepts
         },
         { new: true }
       );
 
-      // Notify rider that driver accepted
-      io.to(`rider-${updatedRide.riderData._id}`).emit(
-        "ride-accepted",
-        updatedRide
-      );
+      if (!updatedRide) throw new Error("Ride not found");
 
-      // Notify driver that acceptance was successful
+      // notify both sides with the latest ride snapshot
+      emitToRideParticipants(io, updatedRide, "ride-accepted", updatedRide);
+      emitToRideParticipants(io, updatedRide, "ride-updated", updatedRide);
+
+      // driver-side confirmation channel (optional)
       io.to(`driver-${driverData._id}`).emit(
         "ride-acceptance-confirmed",
         updatedRide
       );
     } catch (error) {
       console.error("Error accepting ride:", error);
-      io.to(`driver-${driverData._id}`).emit(
-        "ride-acceptance-error",
-        "Failed to accept ride"
-      );
+      if (driverData?._id) {
+        io.to(`driver-${driverData._id}`).emit(
+          "ride-acceptance-error",
+          error.message || "Failed to accept ride"
+        );
+      }
     }
   });
 
-  // Handle ride rejection
-  socket.on("reject-ride", (rideId, driverId) => {
-    console.log("Driver rejecting ride:", rideId, driverId);
+  // --- RIDER UPDATES STATUS (accept / cancel) ---
+  socket.on("update-ride-status", async (payload) => {
+    try {
+      const { rideId, riderStatus, rideStatus, user } = payload || {};
+      if (!rideId || !user?._id) throw new Error("Invalid update payload");
 
-    // Notify rider that driver rejected
-    // You might want to update the ride status in the database
-    io.to(`rider-${rideId}`).emit("ride-rejected", driverId);
+      const update = {};
+      if (riderStatus) update.riderStatus = riderStatus;
+      if (rideStatus) update.rideStatus = rideStatus;
+
+      const updatedRide = await Ride.findByIdAndUpdate(rideId, update, {
+        new: true,
+      });
+      if (!updatedRide) throw new Error("Ride not found");
+
+      // broadcast new state to both participants
+      emitToRideParticipants(io, updatedRide, "ride-updated", updatedRide);
+    } catch (err) {
+      console.error("update-ride-status error:", err);
+      // you can target the user's room if you pass role here
+      socket.emit("ride-update-error", err.message || "Failed to update ride");
+    }
+  });
+
+  // --- DRIVER REJECTS RIDE (optional flow) ---
+  socket.on("reject-ride", async (rideId, driverId) => {
+    try {
+      const ride = await Ride.findById(rideId);
+      if (!ride) return;
+
+      // notify the rider (fix: use rider's room, not rideId as before)
+      io.to(`rider-${ride.riderData._id}`).emit("ride-rejected", {
+        rideId,
+        driverId,
+      });
+
+      // optionally, persist something (e.g., driverStatus: "rejected")
+      // await Ride.findByIdAndUpdate(rideId, { driverStatus: "rejected" });
+    } catch (e) {
+      console.error("reject-ride error", e);
+    }
   });
 
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
   });
 });
+
+// helper to emit to both rider and driver if present
+function emitToRideParticipants(io, ride, event, data) {
+  if (ride?.riderData?._id)
+    io.to(`rider-${ride.riderData._id}`).emit(event, data);
+  if (ride?.driverData?._id)
+    io.to(`driver-${ride.driverData._id}`).emit(event, data);
+}
+
 
 async function findAvailableDrivers() {
   try {

@@ -30,17 +30,18 @@ const Driver = () => {
         socket.on("new-ride-request", (rideData) => {
           console.log("New ride request", rideData);
           setIncomingRide(rideData);
-          setIsRequest(true); // Show the request modal
+          setIsRequest(true);
         });
 
         socket.on("ride-acceptance-confirmed", (rideData) => {
           console.log("Ride acceptance confirmed", rideData);
-          // Handle successful acceptance (e.g., navigate to navigation screen)
+          setIsRequest(false);
+          setIsAvailable(false);
+          localStorage.setItem("isAvailable", JSON.stringify(false));
         });
 
         socket.on("ride-acceptance-error", (error) => {
           console.error("Ride acceptance failed", error);
-          // Show error to driver
         });
 
         return () => {

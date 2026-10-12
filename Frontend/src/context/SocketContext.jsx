@@ -19,10 +19,7 @@ export const SocketProvider = ({ children }) => {
       );
 
       newSocket.on("connect", () => {
-        console.log("Connected to server with ID:", newSocket.id);
-        // Join room based on user role and ID
         if (userData.role === "driver") {
-          // Also emit driver availability when connecting
           newSocket.emit("join-room", userData._id, userData.role);
           console.log("Driver joined room:", `driver-${userData._id}`);
         } else {

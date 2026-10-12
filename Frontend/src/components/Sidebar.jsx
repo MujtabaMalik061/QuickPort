@@ -276,8 +276,7 @@ const Sidebar = ({
     const allValid = results.every((result) => result === true);
 
     if (allValid) {
-      console.log("All addresses are valid, proceeding with search");
-      await handleSearch();
+      await handleSearch(pickupDate);
       setNav(false);
       setIsSearching(true);
     } else {

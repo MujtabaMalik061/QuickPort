@@ -1,63 +1,31 @@
 // Frontend/src/components/Request.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "../assets/styles/Request.css";
 import { Placeholder, Car, Bike, Auto } from "../assets/images/Images";
 import { toast } from "react-toastify";
+import { useAuth } from "../context/AuthContext";
+import { useSocket } from "../context/SocketContext";
 
-const Request = ({ setIsRequest }) => {
+const Request = ({ setIsRequest, incomingRide }) => {
+  const { userData } = useAuth();
+  const socket = useSocket();
   const [isVisible, setIsVisible] = useState(true);
   const [isDetailModel, setIsDetailModel] = useState(false);
+  const [rideData, setRideData] = useState(incomingRide);
+  useEffect(() => {
+    if (!socket) return;
 
-  const rideData = {
-    riderData: {
-      //   _id: objectId("68a763cb8ee80c6fde04d379"),
-      _id: "68a763cb8ee80c6fde04d379",
-      email: "malikmoon.developer061@gmail.com",
-      profileImg: "",
-      firstName: "Moon",
-      lastName: "Awan",
-      phoneNumber: "03123456789",
-      gender: "Male",
-      role: "rider",
-      createdAt: "2025-08-21T18:22:03.115+00:00",
-      updatedAt: "2025-08-21T18:22:57.244+00:00",
-    },
-    driverData: {
-      //   id: objectId("68a5d5b2336947d56c9f0d34"),
-      id: "68a5d5b2336947d56c9f0d34",
-      email: "mujtabamalik0319@gmail.com",
-      profileImg: "",
-      firstName: "Mujtaba",
-      lastName: "Malik",
-      phoneNumber: "03123456789",
-      gender: "Male",
-      CNIC: "34101-2342343423423",
-      rideType: "Car",
-      rideNumber: "CT 1289",
-      rideBrand: "Alto",
-      role: "driver",
-      createdAt: "2025-08-20T14:03:30.145+00:00",
-      updatedAt: "2025-08-22T12:56:56.100+00:00",
-    },
-    rideDetails: {
-      locations: {
-        start:
-          "697, Umer Block Umar Block Allama Iqbal Town, Lahore, 54000, Pakistan",
-        stop: "Ichra Rd, Ichhra Shah Din Scheme Lahore, 54000, Pakistan",
-        end: "2 Gulberg Rd, Millat Colony, Lahore, 54600, Pakistan",
-        totalDistance: "4km",
-        riderlocation:
-          "697, Umer Block Umar Block Allama Iqbal Town, Lahore, 54000, Pakistan",
-        driverlocation:
-          "Shop #02 Fazal e Haq Rd, Ravi Block Allama Iqbal Town, Lahore, Pakistan",
-      },
-      Time: "now",
-    },
-    price: "350",
-    driverStatus: "pending",
-    riderStatus: "pending",
-    rideStatus: "pending",
-  };
+    const onRideUpdated = (updatedRide) => {
+      if (rideData?._id && updatedRide._id === rideData._id) {
+        setRideData(updatedRide);
+      }
+    };
+
+    socket.on("ride-updated", onRideUpdated);
+    return () => {
+      socket.off("ride-updated", onRideUpdated);
+    };
+  }, [socket, rideData]);
 
   const handleClose = () => {
     setIsVisible(false);
@@ -65,15 +33,33 @@ const Request = ({ setIsRequest }) => {
   };
 
   const handleReject = () => {
+    if (socket && rideData) {
+      socket.emit("update-ride-status", {
+        rideId: rideData._id,
+        riderStatus: "cancelled",
+        rideStatus: "cancelled",
+        user: userData,
+      });
+    }
     handleClose();
-    toast.success("Ride rejected");
+    toast.error("Ride rejected");
   };
+
   const handleAccept = () => {
+    if (socket && rideData) {
+      socket.emit("update-ride-status", {
+        rideId: rideData._id,
+        riderStatus: "accepted",
+        rideStatus: "accepted",
+        user: userData,
+      });
+    }
     handleClose();
     toast.success("Ride accepted");
   };
 
-  console.log("rideData-->", rideData);
+  // if (!rideData) return null;
+
   return (
     <>
       <div
@@ -129,7 +115,7 @@ const Request = ({ setIsRequest }) => {
           </p>
           <h2>
             Price: {rideData?.price}
-            <span style={{ fontSize: "17px", fontWeight: "600" }}>Pkr</span>
+            <span style={{ fontSize: "17px", fontWeight: "600" }}> Pkr</span>
           </h2>
         </div>
         <div className="request-action">
@@ -137,6 +123,7 @@ const Request = ({ setIsRequest }) => {
           <button onClick={handleAccept}>Accept</button>
         </div>
       </div>
+
       {isDetailModel && (
         <div
           onClick={() => {
@@ -180,7 +167,6 @@ const Request = ({ setIsRequest }) => {
               <div className="modal-body-driver-rideinfo-container">
                 <img
                   style={{
-                    // border:"none",
                     margin:
                       rideData?.driverData?.rideType === "Car"
                         ? "0px 0px 0px 0px"
@@ -227,7 +213,7 @@ const Request = ({ setIsRequest }) => {
                 </p>
                 <p>
                   <strong>End location:</strong>
-                  {rideData?.rideDetails?.locations?.riderlocation}
+                  {rideData?.rideDetails?.locations?.end}
                 </p>
                 <p>
                   <strong>Total Distance:</strong>

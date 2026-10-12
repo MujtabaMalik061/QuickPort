@@ -8,14 +8,17 @@ import { AuthProvider } from "./context/AuthContext";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { SocketProvider } from "./context/SocketContext";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
-          <SocketProvider>
-        <App />
-          </SocketProvider>
+        <SocketProvider>
+          <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
+            <App />
+          </GoogleOAuthProvider>
+        </SocketProvider>
         <ToastContainer
           position="top-right"
           autoClose={3000}

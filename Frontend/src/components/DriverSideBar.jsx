@@ -13,26 +13,6 @@ const DriverSideBar = ({
 }) => {
   const { userData } = useAuth();
   const [nav, setNav] = useState(true);
-  const [validationErrors, setValidationErrors] = useState({
-    start: "",
-    end: "",
-    stop: "",
-  });
-
-  const validateAddress = async (address, field) => {
-    try {
-      await geocodeAddress(address);
-      setValidationErrors((prev) => ({ ...prev, [field]: "" }));
-      return true;
-    } catch (error) {
-      setValidationErrors((prev) => ({
-        ...prev,
-        [field]: "Invalid address. Please select from suggestions or use map.",
-      }));
-      return false;
-    }
-  };
-
   const handleUseCurrentLocation = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -47,7 +27,6 @@ const DriverSideBar = ({
             const data = await res.json();
             if (data.results.length > 0) {
               setStartLocation(data.results[0].formatted_address);
-              await validateAddress(data.results[0].formatted_address, "start");
             }
             setLocationType("start");
           } catch (err) {

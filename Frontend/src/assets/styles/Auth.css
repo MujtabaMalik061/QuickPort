@@ -151,12 +151,24 @@
 .btn-apple {
   border: 1px solid #ddd;
   background: #fff;
-  color: #000;
+  color: #3c4043;
+  margin-top: 10px;
+  padding: 10px;
+  justify-content: start;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.btn-apple:hover {
+  transform: translate(0px, -0px);
+  box-shadow: none;
+  background-color: rgba(66, 133, 244, .08);
 }
 
 .btn-apple img {
   width: 20px;
   height: 20px;
+  margin-right: 30%;
 }
 
 .divider {

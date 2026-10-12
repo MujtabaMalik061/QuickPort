@@ -1,68 +1,19 @@
 // Frontend/src/components/DriverRequest.jsx
 import React, { useState } from "react";
 import "../assets/styles/Request.css";
-import { Placeholder} from "../assets/images/Images";
+import { Placeholder } from "../assets/images/Images";
 import { toast } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
 
-const DriverRequest = ({ setIsRequest ,incomingRide}) => {
-   const { userData } = useAuth();
-   const socket = useSocket();
+const DriverRequest = ({ setIsRequest, incomingRide }) => {
+  const { userData } = useAuth();
+  const socket = useSocket();
   const [isVisible, setIsVisible] = useState(true);
   const [isDetailModel, setIsDetailModel] = useState(false);
   const [ridePrice, setRidePrice] = useState(350);
 
-  const rideData = {
-    riderData: {
-      //   _id: objectId("68a763cb8ee80c6fde04d379"),
-      _id: "68a763cb8ee80c6fde04d379",
-      email: "malikmoon.developer061@gmail.com",
-      profileImg: "",
-      firstName: "Moon",
-      lastName: "Awan",
-      phoneNumber: "03123456789",
-      gender: "Male",
-      role: "rider",
-      createdAt: "2025-08-21T18:22:03.115+00:00",
-      updatedAt: "2025-08-21T18:22:57.244+00:00",
-    },
-    driverData: {
-      //   id: objectId("68a5d5b2336947d56c9f0d34"),
-      id: "68a5d5b2336947d56c9f0d34",
-      email: "mujtabamalik0319@gmail.com",
-      profileImg: "",
-      firstName: "Mujtaba",
-      lastName: "Malik",
-      phoneNumber: "03123456789",
-      gender: "Male",
-      CNIC: "34101-2342343423423",
-      rideType: "Car",
-      rideNumber: "CT 1289",
-      rideBrand: "Alto",
-      role: "driver",
-      createdAt: "2025-08-20T14:03:30.145+00:00",
-      updatedAt: "2025-08-22T12:56:56.100+00:00",
-    },
-    rideDetails: {
-      locations: {
-        start:
-          "697, Umer Block Umar Block Allama Iqbal Town, Lahore, 54000, Pakistan",
-        stop: "Ichra Rd, Ichhra Shah Din Scheme Lahore, 54000, Pakistan",
-        end: "2 Gulberg Rd, Millat Colony, Lahore, 54600, Pakistan",
-        totalDistance: "4km",
-        riderlocation:
-          "697, Umer Block Umar Block Allama Iqbal Town, Lahore, 54000, Pakistan",
-        driverlocation:
-          "Shop #02 Fazal e Haq Rd, Ravi Block Allama Iqbal Town, Lahore, Pakistan",
-      },
-      Time: "now",
-    },
-    price: "350",
-    driverStatus: "pending",
-    riderStatus: "pending",
-    rideStatus: "pending",
-  };
+  const rideData = incomingRide;
 
   const handleClose = () => {
     setIsVisible(false);
@@ -70,10 +21,13 @@ const DriverRequest = ({ setIsRequest ,incomingRide}) => {
   };
 
   const handleReject = () => {
+    if (socket && incomingRide?._id) {
+      socket.emit("reject-ride", incomingRide._id, userData?._id);
+    }
     handleClose();
-    toast.success("Ride rejected");
+    toast.error("Ride rejected");
   };
- 
+
   const handleAccept = () => {
     if (socket && incomingRide) {
       socket.emit(
@@ -92,7 +46,6 @@ const DriverRequest = ({ setIsRequest ,incomingRide}) => {
   const handleDecrease = () => {
     setRidePrice((prev) => prev - 10);
   };
-  console.log("rideData-->", rideData);
   return (
     <>
       <div
@@ -204,7 +157,7 @@ const DriverRequest = ({ setIsRequest ,incomingRide}) => {
                 </p>
                 <p>
                   <strong>End location:</strong>
-                  {rideData?.rideDetails?.locations?.riderlocation}
+                  {rideData?.rideDetails?.locations?.end}
                 </p>
                 <p>
                   <strong>Total Distance:</strong>

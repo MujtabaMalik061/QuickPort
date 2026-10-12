@@ -13,6 +13,7 @@ import Request from "../components/Request";
 const Rider = () => {
   const { userData } = useAuth();
   const socket = useSocket();
+  const [incomingRide, setIncomingRide] = useState(null);
   const [pickupTime, setPickupTime] = useState("now");
   const [rideRequestSent, setRideRequestSent] = useState(false);
   const [isRequest, setIsRequest] = useState(false);
@@ -23,31 +24,42 @@ const Rider = () => {
   const [endLocation, setEndLocation] = useState("");
   const [stopLocation, setStopLocation] = useState("");
 
-  useEffect(() => {
-    if (socket) {
-      socket.on("ride-request-sent", (rideData) => {
-        console.log("Ride request sent successfully", rideData);
-        setRideRequestSent(true);
-      });
+ useEffect(() => {
+   if (!socket) return;
 
-      socket.on("ride-request-error", (error) => {
-        console.error("Ride request failed", error);
-      });
+   socket.on("ride-request-sent", (rideData) => {
+     console.log("Ride request sent successfully", rideData);
+     setIncomingRide(rideData);
+     setRideRequestSent(true);
+   });
 
-      socket.on("ride-accepted", (rideData) => {
-        setIsRequest(true);
-        console.log("Ride accepted by driver", rideData);
-      });
+   socket.on("ride-request-error", (error) => {
+     console.error("Ride request failed", error);
+   });
 
-      return () => {
-        socket.off("ride-request-sent");
-        socket.off("ride-request-error");
-        socket.off("ride-accepted");
-      };
-    }
-  }, [socket]);
+   socket.on("ride-accepted", (rideData) => {
+     console.log("Ride accepted by driver", rideData);
+     setIncomingRide(rideData);
+     setIsRequest(true);
+   });
 
-  const handleSearch = async () => {
+ socket.on("ride-updated", (rideData) => {
+   console.log("Ride updated", rideData);
+   setIncomingRide(rideData);
+   if (rideData.driverStatus === "accepted" && !isRequest) {
+     setIsRequest(true);
+   }
+ });
+
+   return () => {
+     socket.off("ride-request-sent");
+     socket.off("ride-request-error");
+     socket.off("ride-accepted");
+     socket.off("ride-updated");
+   };
+ }, [socket]);
+
+  const handleSearch = async (pickupDate = "") => {
     const rideData = {
       riderData: userData,
       rideDetails: {
@@ -55,7 +67,7 @@ const Rider = () => {
           start: startLocation,
           stop: stopLocation,
           end: endLocation,
-          totalDistance: "4km",
+          totalDistance: "",
           riderlocation: startLocation,
           driverlocation: "",
         },
@@ -69,6 +81,7 @@ const Rider = () => {
 
     if (socket) {
       socket.emit("ride-request", rideData);
+      setIsSearching(true);
     }
 
     return rideData;
@@ -128,7 +141,11 @@ const Rider = () => {
           />
         )}
         {isRequest && (
-          <Request setIsRequest={setIsRequest} isRequest={isRequest} />
+          <Request
+            setIsRequest={setIsRequest}
+            isRequest={isRequest}
+            incomingRide={incomingRide}
+          />
         )}
       </div>
       {isProfileDetails && (

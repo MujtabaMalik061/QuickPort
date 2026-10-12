@@ -9,6 +9,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
 import { OAuth2Client } from "google-auth-library";
+import appleSigninAuth from "apple-signin-auth";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -57,12 +58,12 @@ export const uploadProfileImage = upload.single("profileImg");
 
 // ---- Nodemailer ----
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
+  host: process.env.EMAIL_HOST || "smtp.gmail.com",
+  port: parseInt(process.env.EMAIL_PORT) || 587,
   secure: false,
   auth: {
-    user: "malikmoon.developer061@gmail.com",
-    pass: "upqk cerh kxbr qtup",
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
 });
 
@@ -77,7 +78,7 @@ export const sendOtp = async (req, res) => {
     }
 
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
-    const otpExpires = new Date(Date.now() + 2 * 60 * 1000);
+    const otpExpires = new Date(Date.now() + 5 * 60 * 1000);
 
     let { user, role } = await findUserByEmail(email);
     if (!user) {
@@ -89,7 +90,7 @@ export const sendOtp = async (req, res) => {
     await user.save();
 
     await transporter.sendMail({
-      from: `"QuickPort" <malikmoon.developer061@gmail.com>`,
+      from: `"QuickPort" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: "Your OTP for QuickPort Login",
       html: `<p>Your OTP is <b>${otp}</b>. It is valid for 5 minutes.</p>`,
@@ -173,9 +174,32 @@ export const googleLogin = async (req, res) => {
   }
 };
 
-export const appleLogin = async (_req, res) => {
-  // Placeholder for real Apple Sign-in
-  return res.status(501).json({ message: "Apple login not implemented yet" });
+export const appleLogin = async (req, res) => {
+  try {
+    const { id_token, type } = req.body;
+    const appleUser = await appleSigninAuth.verifyIdToken(id_token, {
+      audience: process.env.APPLE_CLIENT_ID,
+    });
+
+    const { email } = appleUser;
+    let { user } = await findUserByEmail(email);
+    if (!user) {
+      ({ user } = await createUserByType(email, type));
+    }
+
+    const jwtToken = jwt.sign({ email: user.email }, process.env.JWT_SECRET, {
+      expiresIn: "30d",
+    });
+
+    res.status(200).json({
+      message: "Apple login successful",
+      token: jwtToken,
+      user,
+    });
+  } catch (error) {
+    console.error("Apple login error:", error);
+    res.status(500).json({ message: "Failed to login with Apple" });
+  }
 };
 
 export const getUserData = async (req, res) => {

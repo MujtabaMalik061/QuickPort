@@ -16,6 +16,9 @@ const router = express.Router();
 // Socials
 router.post("/google-login", googleLogin);
 router.post("/apple-login", appleLogin);
+router.get("/apple-login", (req, res) => {
+  res.status(400).json({ message: "Apple login requires POST" });
+});
 
 // OTP flow
 router.post("/send-otp", sendOtp);

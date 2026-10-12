@@ -5,15 +5,16 @@ import {
   WhiteLogo,
   Ride,
   Steering,
-  GoogleIcon,
   AppleIcon,
 } from "../assets/images/Images";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import Otp from "./Otp";
 import { toast } from "react-toastify";
+import { GoogleLogin } from "@react-oauth/google";
 
 const Login = () => {
+  const location = useLocation();
   const navigate = useNavigate();
   const [signUp, setSignUp] = useState(false);
   const [email, setEmail] = useState("");
@@ -42,14 +43,14 @@ const Login = () => {
     }
     try {
       setLoading(true);
-          const response = await fetch(
-            `${import.meta.env.VITE_BACKEND_URL}/api/auth/send-otp`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ email }),
-            }
-          );
+      const response = await fetch(
+        `${import.meta.env.VITE_BACKEND_URL}/api/auth/send-otp`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        }
+      );
       const data = await response.json();
       if (response.ok) {
         setOtpModal(true);
@@ -64,6 +65,41 @@ const Login = () => {
       setLoading(false);
     }
   };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_BACKEND_URL}/api/auth/google-login`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            token: credentialResponse.credential,
+            type: "ride",
+          }),
+        }
+      );
+      const data = await response.json();
+      if (response.ok) {
+        localStorage.setItem("token", data.token);
+        window.location.href = "/";
+        toast.success("Google login successful!");
+      } else {
+        toast.error(data.message || "Google login failed");
+      }
+    } catch (err) {
+      toast.error("Google login error: " + err.message);
+    }
+  };
+
+  const handleGoogleError = () => {
+    toast.error("Google Sign-In failed");
+  };
+
+const handleAppleLogin = async () => {
+  toast.info("Apple Sign-In is not available yet. Please use email or Google.");
+};
+
 
   return (
     <>
@@ -127,11 +163,16 @@ const Login = () => {
             <span>or</span>
           </div>
 
-          <button className="btn btn-google">
+          {/* <button className="btn btn-google">
             <img src={GoogleIcon} alt="google" />
             Continue with Google
-          </button>
-          <button className="btn btn-apple">
+          </button> */}
+          <GoogleLogin
+            onSuccess={handleGoogleSuccess}
+            onError={handleGoogleError}
+          />
+
+          <button className="btn btn-apple" onClick={handleAppleLogin}>
             <img src={AppleIcon} alt="apple" />
             Continue with Apple
           </button>
