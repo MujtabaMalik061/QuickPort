@@ -25,7 +25,7 @@ const server = http.createServer(app);
 
 const allowedOrigins = process.env.FRONTEND_URLS
   ? process.env.FRONTEND_URLS.split(",")
-  : ["http://localhost:5173", "https://quick-port-gules.vercel.app"];
+  : ["http://localhost:5173", "https://quickport-online.vercel.app"];
 
 // Socket.IO setup with CORS configuration
 const io = new Server(server, {
